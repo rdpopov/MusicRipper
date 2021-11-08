@@ -48,9 +48,9 @@ def cast_arguments(key, val):
         assert False, "Unknown arg type"
 
 
-def download_song_vid_info(info):
+def download_song_vid_info(info, path):
     try:
-        tmp = song(*info)
+        tmp = song(info,path)
         tmp.download()
         # yes i know bad practice but sometimes it randomly fails, too much
         # traffic maybe ?
@@ -58,8 +58,11 @@ def download_song_vid_info(info):
     except:
         pass
 
+def mp3_name(tmp):
+    return tmp[:tmp.rindex('.')]+".mp3"
+
 def clean_name(name):
-    return re.sub(" ?[(].*[)] ?| ?[[].*[]] ?", "", name)
+    return mp3_name(re.sub(" ?[(].*[)] ?| ?[[].*[]] ?", "", name))
 
 # since android does not support termux, this is necessary, threads are
 # supported and also might be more balanced in downloading in bursts
@@ -71,7 +74,7 @@ class PseudoPool:
 
     def add_op(self, fnc, args):
         # should be thread but behaviour is a lot like pthr
-        self._que = pthr(target=fnc, args=args)
+        self._que.append(pthr(target=fnc, args=args))
         self.try_process()
 
     def try_process(self, force=False):
@@ -149,7 +152,8 @@ class song:
                 inf = down.extract_info(self._webpage_url, download=True)
                 dst_name = down.prepare_filename(inf)
                 print("rename to ", clean_name(dst_name))
-                os.rename(dst_name, clean_name(dst_name))
+                print("rename to ", mp3_name(dst_name))
+                os.rename(mp3_name(dst_name), clean_name(dst_name))
 
 
 if __name__ == '__main__':
@@ -171,5 +175,5 @@ if __name__ == '__main__':
                     video = result
                 video_name = list(zip(video, repeat(name)))
                 for i in video_name:
-                    ps_pool.add_op(download_song_vid_info, video_name)
+                    ps_pool.add_op(download_song_vid_info, (i))
         ps_pool.flush_try()
