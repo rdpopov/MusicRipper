@@ -5,9 +5,7 @@ import os
 import sys
 import re
 from itertools import repeat as repeat
-from multiprocessing import Pool
-from mutagen.easyid3 import EasyID3
-from mutagen.mp3 import MP3
+from threading import Thread as pthr
 
 global_settings = {
         '--force-replace': True,
@@ -54,12 +52,41 @@ def download_song_vid_info(info):
     try:
         tmp = song(*info)
         tmp.download()
-    except: # yes i know bad practice 
+        # yes i know bad practice but sometimes it randomly fails, too much
+        # traffic maybe ?
+        #TODO: Add a better except catch block
+    except:
         pass
 
-
 def clean_name(name):
-    return re.sub("[(].*[)]\|[\[].*[\]]", '', name.replace(' ', '_'))
+    return re.sub(" ?[(].*[)] ?| ?[[].*[]] ?", "", name)
+
+# since android does not support termux, this is necessary, threads are
+# supported and also might be more balanced in downloading in bursts
+
+class PseudoPool:
+    def __init__(self, size_pool):
+        self._size = size_pool
+        self._que = []
+
+    def add_op(self, fnc, args):
+        # should be thread but behaviour is a lot like pthr
+        self._que = pthr(target=fnc, args=args)
+        self.try_process()
+
+    def try_process(self, force=False):
+        if len(self._que) == self._size or force:
+            for i in self._que:
+                i.start()
+            for i in self._que:
+                i.join()
+            self._que = []
+        else:
+            return
+
+    def flush_try(self):
+        self.try_process(True)
+
 
 class song:
     def __init__(self, vid_info, sub_path = ""):
@@ -120,20 +147,18 @@ class song:
                     }
             with youtube_dl.YoutubeDL(ydl_opts) as down:
                 inf = down.extract_info(self._webpage_url, download=True)
-            #    dst_name = down.prepare_filename(inf)
-            #    print("rename to ", clean_name(dst_name))
-            #    os.rename(dst_name, clean_name(dst_name))
-            #self.add_metadata_mut()
+                dst_name = down.prepare_filename(inf)
+                print("rename to ", clean_name(dst_name))
+                os.rename(dst_name, clean_name(dst_name))
 
 
 if __name__ == '__main__':
-
     for i in sys.argv[1:]:
         arg_type, arg_value = i.split(':')
         assert arg_type not in global_settings, "Argument {} is Unknown".format(arg_type)
         cast_arguments(arg_type, arg_value)
 
-    worker_pool = Pool(global_settings['--concurent-flows'])
+    ps_pool = PseudoPool(global_settings['--concurent-flows'])
     with open(global_settings['--playlists-csv'], 'r') as playlists:
         ydl = youtube_dl.YoutubeDL()
         for i in playlists:
@@ -144,7 +169,7 @@ if __name__ == '__main__':
                     video = result['entries']
                 else:
                     video = result
-                video_name = list(zip(video,repeat(name)))
-                worker_pool.map(download_song_vid_info,video_name)
-#                for i in video_name:
-#                    download_song_vid_info(i)
+                video_name = list(zip(video, repeat(name)))
+                for i in video_name:
+                    ps_pool.add_op(download_song_vid_info, video_name)
+        ps_pool.flush_try()
