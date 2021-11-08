@@ -5,10 +5,11 @@ import os
 import sys
 import re
 from itertools import repeat as repeat
-from threading import Thread as pthr
+from threading import Thread as Thread
+from threading import Lock as Lock
 
 global_settings = {
-        '--force-replace': True,
+        '--force-replace': False,
         '--no_structure': False,
         '--path': os.getcwd(),
         '--playlists-csv': 'library.csv',
@@ -73,8 +74,7 @@ class PseudoPool:
         self._que = []
 
     def add_op(self, fnc, args):
-        # should be thread but behaviour is a lot like pthr
-        self._que.append(pthr(target=fnc, args=args))
+        self._que.append(Thread(target=fnc, args=args))
         self.try_process()
 
     def try_process(self, force=False):
@@ -89,7 +89,34 @@ class PseudoPool:
 
     def flush_try(self):
         self.try_process(True)
+class Cache:
+    def __init__(self, fname="./.cache"):
+        self.cache = set()
+        self.__cache_name = fname
+        self.new_cache = set()
+        self.__lock = Lock()
+        if os.path.isfile(fname):
+            with open(fname, 'r') as c_file:
+                for i in c_file:
+                    self.cache.add(i.rstrip())
 
+    def is_in(self, item):
+        #TODO: find out why a race condition appears
+        return not (item in self.cache or item in self.new_cache)
+
+    def add(self, item):
+        self.__lock.acquire()
+        self.new_cache.add(item)
+        self.__lock.release()
+
+    def write_to_file(self):
+        self.__lock.acquire()
+        with open(self.__cache_name,'a') as c_file:
+            for i in self.new_cache.difference(self.cache):
+                c_file.write(i+"\n")
+        self.__lock.release()
+
+cache = Cache()
 
 class song:
     def __init__(self, vid_info, sub_path = ""):
@@ -149,13 +176,15 @@ class song:
                     'outtmpl': "./Music/"+ self._playlist + "/%(title)s.%(ext)s",
                     }
             with youtube_dl.YoutubeDL(ydl_opts) as down:
-                inf = down.extract_info(self._webpage_url, download=True)
-                dst_name = down.prepare_filename(inf)
-                print("rename to ", clean_name(dst_name))
-                print("rename to ", mp3_name(dst_name))
-                os.rename(mp3_name(dst_name), clean_name(dst_name))
+                vid = self._webpage_url[self._webpage_url.rindex('='):]
+                if cache.is_in(vid) or global_settings['--force-replace']:
+                    inf = down.extract_info(self._webpage_url, download=True)
+                    dst_name = down.prepare_filename(inf)
+                    os.rename(mp3_name(dst_name), clean_name(dst_name))
+                    cache.add(vid)
 
 
+print(cache.cache)
 if __name__ == '__main__':
     for i in sys.argv[1:]:
         arg_type, arg_value = i.split(':')
@@ -163,9 +192,12 @@ if __name__ == '__main__':
         cast_arguments(arg_type, arg_value)
 
     ps_pool = PseudoPool(global_settings['--concurent-flows'])
+
     with open(global_settings['--playlists-csv'], 'r') as playlists:
         ydl = youtube_dl.YoutubeDL()
         for i in playlists:
+            if ',' not in i:
+                continue
             name, link = i.split(',')
             with ydl:
                 result = ydl.extract_info(link, download=False)
@@ -177,3 +209,4 @@ if __name__ == '__main__':
                 for i in video_name:
                     ps_pool.add_op(download_song_vid_info, (i))
         ps_pool.flush_try()
+        cache.write_to_file()
