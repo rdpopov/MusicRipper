@@ -4,9 +4,10 @@ import youtube_dl
 import os
 import sys
 import re
-from itertools import repeat
+from itertools import repeat as repeat
 from multiprocessing import Pool
 from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
 
 global_settings = {
         '--force-replace': True,
@@ -14,7 +15,7 @@ global_settings = {
         '--path': os.getcwd(),
         '--playlists-csv': 'library.csv',
         '--output-folder': 'Music',
-        '--concurent-flows': 10,
+        '--concurent-flows': 16,
         }
 
 
@@ -50,9 +51,15 @@ def cast_arguments(key, val):
 
 
 def download_song_vid_info(info):
-    tmp = song(*info)
-    tmp.download()
+    try:
+        tmp = song(*info)
+        tmp.download()
+    except: # yes i know bad practice 
+        pass
 
+
+def clean_name(name):
+    return re.sub("[(].*[)]\|[\[].*[\]]", '', name.replace(' ', '_'))
 
 class song:
     def __init__(self, vid_info, sub_path = ""):
@@ -61,14 +68,19 @@ class song:
         self._title = if_key(vid_info, 'title')
         self._alt_title = if_key(vid_info, 'alt_title')
         self._webpage_url = if_key(vid_info, 'webpage_url')
-        self.name = self.form_name()
-        self.path = self.form_path(sub_path)
+        self._playlist = sub_path
 
     def form_name(self):
         if self._alt_title and self._artist:
-            return "{}-{}.mp3".format(self._artist, self._alt_title)
+            return "{}-{}".format(self._artist, self._alt_title)
         else:
-            return re.sub("[(].*[)]", '', self._title.replace(' ', '_'))
+            return re.sub("[(].*[)]|[[].*[]]", '', self._title.replace(' ', '_'))
+
+    def form_ydl_name(self):
+        if self._alt_title and self._artist:
+            return "%(artist)s-%(alt_title)s.%(ext)s"
+        else:
+            return "%(title)s.%(ext)s"
 
     def form_path(self, sub_path):
         fname = self.form_name()
@@ -77,20 +89,24 @@ class song:
         whr = art + '/' + alb
         whr = to_pth(whr, fname)
         pth = to_pth(global_settings['--path'],
-                     global_settings['--output-folder'] + '/' + sub_path)
+                        global_settings['--output-folder'] + '/' + sub_path)
         if global_settings['--no_structure']:
             return to_pth(pth, fname)
         return to_pth(pth, whr)
 
-    def add_metadata(self):
-        audio = EasyID3(self.path)
-        audio['title'] = u"{}".format(self._alt_title or 'Unknown')
-        audio['artist'] = u"{}".format(self._artist or 'Unknown')
-        audio['album'] = u"{}".format(self._album or 'Unknown')
-        audio.save()
+    def form_ydl_path(self, sub_path):
+        fname = self.form_ydl_name()
+        alb = self._album or 'Unknown'
+        art = self._artist or 'Unknown'
+        whr = art + '/' + alb
+        whr = to_pth(whr, fname)
+        pth = to_pth(global_settings['--path'],
+                        global_settings['--output-folder'] + '/' + sub_path)
+        if global_settings['--no_structure']:
+            return to_pth(pth, fname)
+        return to_pth(pth, whr)
 
     def download(self):
-        if not (os.path.isfile(self.path) or os.path.isfile(self.name)) or global_settings['--force_replace']:
             ydl_opts = {
                     'format': 'bestaudio',
                     'postprocessors': [{
@@ -100,11 +116,14 @@ class song:
                         }],
                     'prefer_ffmpeg': True,
                     'keepvideo': False,
-                    'outtmpl': self.path,
+                    'outtmpl': "./Music/"+ self._playlist + "/%(title)s.%(ext)s",
                     }
             with youtube_dl.YoutubeDL(ydl_opts) as down:
-                down.extract_info(self._webpage_url, download=True)
-            self.add_metadata()
+                inf = down.extract_info(self._webpage_url, download=True)
+            #    dst_name = down.prepare_filename(inf)
+            #    print("rename to ", clean_name(dst_name))
+            #    os.rename(dst_name, clean_name(dst_name))
+            #self.add_metadata_mut()
 
 
 if __name__ == '__main__':
@@ -125,5 +144,7 @@ if __name__ == '__main__':
                     video = result['entries']
                 else:
                     video = result
-                #video = list(zip(video, itertools.repeat(name)))
-                worker_pool.map(download_song_vid_info, zip(video, repeat(name)))
+                video_name = list(zip(video,repeat(name)))
+                worker_pool.map(download_song_vid_info,video_name)
+#                for i in video_name:
+#                    download_song_vid_info(i)
