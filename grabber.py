@@ -176,17 +176,19 @@ class song:
                     'prefer_ffmpeg': True,
                     'keepvideo': False,
                     'embed-metadata':True,
-                    'compat-options':['no-abort-on-error'],
                     'outtmpl': "./Music/"+ self._playlist + "/%(title)s.%(ext)s",
                     }
-            with yt_dlp.YoutubeDL(ydl_opts) as down:
-                vid = self._webpage_url[self._webpage_url.rindex('='):]
-                if cache.is_in(vid) or global_settings['--force-replace']:
-                    inf = down.extract_info(self._webpage_url, download=True)
-                    dst_name = down.prepare_filename(inf)
-                    print(dst_name)
-                    os.rename(mp3_name(dst_name), clean_name(dst_name))
-                    cache.add(vid)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as down:
+                    vid = self._webpage_url[self._webpage_url.rindex('='):]
+                    if cache.is_in(vid) or global_settings['--force-replace']:
+                        inf = down.extract_info(self._webpage_url, download=True)
+                        dst_name = down.prepare_filename(inf)
+                        print(dst_name)
+                        os.rename(mp3_name(dst_name), clean_name(dst_name))
+                        cache.add(vid)
+            except yt_dlp.utils.ExtractorError:
+                print('Video unavailable')
 
 
 print(cache.cache)
@@ -199,20 +201,23 @@ if __name__ == '__main__':
     ps_pool = PseudoPool(global_settings['--concurent-flows'])
 
     with open(global_settings['--playlists-csv'], 'r') as playlists:
-        ydl = yt_dlp.YoutubeDL()
+        ydl = yt_dlp.YoutubeDL({'ignore-errors': True,'compat_opts':['no-youtube-unavailable-videos']})
         for i in playlists:
             cache.write_to_file()
             if ',' not in i:
                 continue
             name, link = i.split(',')
             with ydl:
-                result = ydl.extract_info(link, download=False)
-                if 'entries' in result:
-                    video = result['entries']
-                else:
-                    video = result
-                video_name = list(zip(video, repeat(name)))
-                for i in video_name:
-                    ps_pool.add_op(download_song_vid_info, (i))
+                try:
+                    result = ydl.extract_info(link, download=False)
+                    if 'entries' in result:
+                        video = result['entries']
+                    else:
+                        video = result
+                    video_name = list(zip(video, repeat(name)))
+                    for i in video_name:
+                        ps_pool.add_op(download_song_vid_info, (i))
+                except yt_dlp.utils.ExtractorError or yt_dlp.utils.DownloadError:
+                    print('Video unavailable')
         ps_pool.flush_try()
         cache.write_to_file()
