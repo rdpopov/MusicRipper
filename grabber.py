@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import youtube_dl
+import yt_dlp
 import os
 import sys
 import re
@@ -14,7 +14,7 @@ global_settings = {
         '--path': os.getcwd(),
         '--playlists-csv': 'library.csv',
         '--output-folder': 'Music',
-        '--concurent-flows': 16,
+        '--concurent-flows': 20,
         }
 
 
@@ -114,6 +114,8 @@ class Cache:
         with open(self.__cache_name,'a') as c_file:
             for i in self.new_cache.difference(self.cache):
                 c_file.write(i+"\n")
+            self.cache.update(self.new_cache)
+            self.new_cache=set()
         self.__lock.release()
 
 cache = Cache()
@@ -173,13 +175,16 @@ class song:
                         }],
                     'prefer_ffmpeg': True,
                     'keepvideo': False,
+                    'embed-metadata':True,
+                    'compat-options':['no-abort-on-error'],
                     'outtmpl': "./Music/"+ self._playlist + "/%(title)s.%(ext)s",
                     }
-            with youtube_dl.YoutubeDL(ydl_opts) as down:
+            with yt_dlp.YoutubeDL(ydl_opts) as down:
                 vid = self._webpage_url[self._webpage_url.rindex('='):]
                 if cache.is_in(vid) or global_settings['--force-replace']:
                     inf = down.extract_info(self._webpage_url, download=True)
                     dst_name = down.prepare_filename(inf)
+                    print(dst_name)
                     os.rename(mp3_name(dst_name), clean_name(dst_name))
                     cache.add(vid)
 
@@ -194,8 +199,9 @@ if __name__ == '__main__':
     ps_pool = PseudoPool(global_settings['--concurent-flows'])
 
     with open(global_settings['--playlists-csv'], 'r') as playlists:
-        ydl = youtube_dl.YoutubeDL()
+        ydl = yt_dlp.YoutubeDL()
         for i in playlists:
+            cache.write_to_file()
             if ',' not in i:
                 continue
             name, link = i.split(',')
