@@ -12,4 +12,6 @@ Using just a playlist url.
   - editing output file metadata to be a little bit more automatic.
     - Automatic adding the name and artist and other metadata
   - Possibly add lyrics and artwork from somewhere(maybe thumbnail)
-  - Will add more
+  - Will add More
+#### TODO
+  - Add display hooks for progress and other things
