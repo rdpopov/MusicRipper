@@ -3,6 +3,7 @@ from googlesearch import search
 import requests
 from bs4 import BeautifulSoup
 import re
+import os
 
 def extract_name(inp):
     tmp = inp[inp.rindex('/'):]
@@ -28,25 +29,40 @@ def get_artwork_location(name, subs):
 
 class albumArtwork:
     cache_artwork = {}
-    def __init__(self, path,artwork='discogs'):
-        self.path = path
 
-        self.artwork_url = get_artwork_location(self.name, artwork)
+    def __init__(self, path):
+        albumArtwork.cache_artwork = {}
+        self.path = path
+        if not os.path.isdir(path):
+            os.mkdir(path)
 
     def extract_artwork(self, soupp):
-        art = soupp.find_all('img', {'alt': re.compile(r'album cover$')})
+        art = soupp.find('img', {'alt': re.compile(r'album cover$')})
         print(art)
         if art:
-            return "" #art['src']
+            return art['src']
         return ""
 
-    def get_artwork(self, artist, album):
-        get_artwork_location(self.name, artwork)
-        
-
-            discogs = requests.get(self.discogs_url).text
+    def get_artwork(self, metadata_dict):
+        artist = metadata_dict['artist']
+        album = metadata_dict['album']
+        if album == None or album == 'Unknown':
+            return None
+        if (artist, album) in albumArtwork.cache_artwork:
+            return albumArtwork.cache_artwork[(artist, album)]
+        else:
+            discogs_url = get_artwork_location("{} {} {}".format(artist, album, 'discogs'), 'discogs')
+            discogs = requests.get(discogs_url).text
             thin = BeautifulSoup(discogs, 'html.parser')
-            meta['artwork'] = self.extract_artwork(thin)
+            url = self.extract_artwork(thin)
+            if url:
+                img_data = requests.get(url).content
+                img_name = '{}/{} {}'.format(self.path, artist, album)
+                with open('{}/{} {}'.format(self.path, artist, album), 'wb') as handler:
+                    handler.write(img_data)
+                albumArtwork.cache_artwork[(artist, album)] = img_name
+            else:
+                albumArtwork.cache_artwork[(artist, album)] = None
 
 
 class songMetadata:
@@ -74,12 +90,6 @@ class songMetadata:
     def extract_lyrics(self, soup):
         return re.sub('\n', '\\n', soup.find('div', {'class': 'ringtone'}).findNext('div').text).strip()
 
-    def extract_artwork(self, soupp):
-        art = soupp.find_all('img', {'alt': re.compile(r'album cover$')})
-        print(art)
-        if art:
-            return "" #art['src']
-        return ""
 
     def fetch_metadata(self):
         meta = {
@@ -87,7 +97,6 @@ class songMetadata:
                 'album': '',
                 'artist': '',
                 'lyrics': '',
-                'artwork': ''
                 }
         if self.url is not None:
             text = requests.get(self.url).text
@@ -100,12 +109,13 @@ class songMetadata:
 
 
 if __name__ ==  "__main__":
-    #song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3")
-    song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3")
+    artworker = albumArtwork('./.tmp')
+    song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3")
+    #song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3")
     #song = songMetadata("./Music/A_Thousand_Suns/Blackout - Linkin Park.mp3")
     res = song.fetch_metadata()
-    #print(res['lyrics'])
     print(res['artist'])
     print(res['name'])
     print(res['album'])
-    print(res['artwork'])
+    artworker.get_artwork(res)
+    #print(res['lyrics'])

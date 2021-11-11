@@ -7,6 +7,9 @@ import re
 from itertools import repeat as repeat
 from threading import Thread as Thread
 from threading import Lock as Lock
+import metadator
+
+global_meta = metadator.albumArtwork('./tmp')
 
 global_settings = {
         '--force-replace': False,
@@ -68,6 +71,7 @@ def clean_name(name):
 # since android does not support termux, this is necessary, threads are
 # supported and also might be more balanced in downloading in bursts
 
+
 class PseudoPool:
     def __init__(self, size_pool):
         self._size = size_pool
@@ -89,6 +93,8 @@ class PseudoPool:
 
     def flush_try(self):
         self.try_process(True)
+
+
 class Cache:
     def __init__(self, fname="./.cache"):
         self.cache = set()
@@ -119,6 +125,7 @@ class Cache:
         self.__lock.release()
 
 cache = Cache()
+
 
 class song:
     def __init__(self, vid_info, sub_path = ""):
@@ -164,6 +171,9 @@ class song:
         if global_settings['--no_structure']:
             return to_pth(pth, fname)
         return to_pth(pth, whr)
+
+    def fix_metadata(self, file_location):
+        pass
 
     def download(self):
             ydl_opts = {
