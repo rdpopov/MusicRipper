@@ -8,8 +8,9 @@ from itertools import repeat as repeat
 from threading import Thread as Thread
 from threading import Lock as Lock
 import metadator
+import eyeD3
 
-global_meta = metadator.albumArtwork('./tmp')
+global_artwork = metadator.albumArtwork('./tmp')
 
 global_settings = {
         '--force-replace': False,
@@ -172,8 +173,22 @@ class song:
             return to_pth(pth, fname)
         return to_pth(pth, whr)
 
-    def fix_metadata(self, file_location):
-        pass
+    def fix_metadata(self, file_location):#, rename=True):
+
+        meta = metadator.songMetadata(file_location)
+        mdata = meta.fetch_metadata()
+        sng = eyeD3.load(file_location)
+        if not sng.tag:
+            sng.add_tags()
+        sng.tag.artist = u"{}".format(mdata['artist'])
+        sng.tag.album = u"{}".format(mdata['album'])
+        sng.tag.artist = u"{}".format(mdata['artist'])
+        sng.tag.lyrics = u"{}".format(mdata['lyrics'])
+        art = global_artwork.get_artwork(mdata)
+        if art:
+            with open(art, "rb") as cover_art:
+                song.tag.images.set(3, cover_art.read(), "image/jpeg")
+        sng.tag.save(file_location)
 
     def download(self):
             ydl_opts = {
@@ -196,7 +211,11 @@ class song:
                         dst_name = down.prepare_filename(inf)
                         print(dst_name)
                         os.rename(mp3_name(dst_name), clean_name(dst_name))
+                        self.fix_metadata(clean_name(dst_name))
                         cache.add(vid)
+
+
+
             except yt_dlp.utils.ExtractorError:
                 print('Video unavailable')
 
