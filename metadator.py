@@ -4,6 +4,9 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
+import glob
+import eyed3
+
 
 def extract_name(inp):
     tmp = inp[inp.rindex('/'):]
@@ -81,15 +84,16 @@ class songMetadata:
             return re.sub(' ?Lyrics', '', art)
 
     def extract_album(self, soup):
-        alb = soup.find('div', {'class': 'songinalbum_title'})
-        if 'album' in alb.text:
-            return soup.find('div', {'class': 'songinalbum_title'}).find('b').text or ""
+        alb = soup.find('div', {'class': 'songinalbum_title'}).find('b')
+        if 'album' in alb:
+
+            print(alb)
+            return alb.findChildren('b').text or ""
         else:
             return "Unknown"
 
     def extract_lyrics(self, soup):
         return re.sub('\n', '\\n', soup.find('div', {'class': 'ringtone'}).findNext('div').text).strip()
-
 
     def fetch_metadata(self):
         meta = {
@@ -107,15 +111,44 @@ class songMetadata:
             meta['lyrics'] = self.extract_lyrics(soup)
         return meta
 
+    def set_metadata(self, mdata):
+        sng = eyed3.load(self.path)
+        if not sng.tag:
+            sng.add_tags()
+        sng.tag.artist = u"{}".format(mdata['artist'])
+        sng.tag.album = u"{}".format(mdata['album'])
+        sng.tag.artist = u"{}".format(mdata['artist'])
+        sng.tag.lyrics = u"{}".format(mdata['lyrics'])
+        art = global_artwork.get_artwork(mdata)
+        if art:
+            with open(art, "rb") as cover_art:
+                sng.tag.images.set(3, cover_art.read(), "image/jpeg")
+        sng.tag.save(self.path)
 
-if __name__ ==  "__main__":
-    artworker = albumArtwork('./.tmp')
-    song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3")
-    #song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3")
-    #song = songMetadata("./Music/A_Thousand_Suns/Blackout - Linkin Park.mp3")
-    res = song.fetch_metadata()
-    print(res['artist'])
-    print(res['name'])
-    print(res['album'])
-    artworker.get_artwork(res)
-    #print(res['lyrics'])
+
+class FileLibrary:
+    def __init__(self, root_path):
+        self.root = root_path
+        self.files = []
+
+    def get_folder_list(self):
+        return glob.glob(self.root+"/*/*.mp3")
+
+
+global_artwork = albumArtwork('./tmp')
+
+if __name__ == "__main__":
+    #song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3")
+    ##song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3")
+    ##song = songMetadata("./Music/A_Thousand_Suns/Blackout - Linkin Park.mp3")
+    #res = song.fetch_metadata()
+    #print(res['artist'])
+    #print(res['name'])
+    #print(res['album'])
+    #artworker.get_artwork(res)
+    ##print(res['lyrics'])
+    test = FileLibrary('./Music/')
+    for fl in test.get_folder_list():
+        tmp = songMetadata(fl)
+        mdata = tmp.fetch_metadata()
+        tmp.set_metadata(mdata=mdata)
