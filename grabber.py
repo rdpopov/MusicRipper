@@ -173,7 +173,7 @@ class song:
             return to_pth(pth, fname)
         return to_pth(pth, whr)
 
-    def fix_metadata(self, file_location):#, rename=True):
+    def fix_metadata(self, file_location):
         meta = metadator.songMetadata(file_location)
         mdata = meta.fetch_metadata()
         sng = eyeD3.load(file_location)
