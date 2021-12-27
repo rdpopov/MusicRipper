@@ -7,6 +7,7 @@ import re
 import os
 import glob
 import eyed3
+import string
 
 
 def extract_name(inp):
@@ -22,17 +23,28 @@ def get_url(name, subs):
         return res[0]
     return None
 
+def match_helper(url,keywords):
+    res = 0
+    for i in keywords:
+        if i in url:
+            res = res + 1
+    return res
 
-def get_artwork_location(name, subs):
+
+
+def get_artwork_location(name, subs,keywords: list):
     # TODO: write a more intelligent filter
-    # NOTE: make it so filter looks for keywords in the url, discogs does that. so the one with the most amount of matches is the closest
+    # NOTE: make it so filter looks for keywords in the url, discogs does that.
+    # so the one with the most amount of matches is the closest
 
     res = list(filter(lambda x: subs in x, search(name, num_results=10)))
-    # print(res)
+
     if res is not None:
         if res.__len__() == 0:
             return None
-        return res[0]
+        else:
+            lst = map(lambda x: (x,match_helper(x, keywords)),res)
+            return max(lst,lambda x: x[1])[0]
     return None
 
 
@@ -117,7 +129,9 @@ class albumArtwork:
         if (artist, album) in albumArtwork.cache_artwork:
             return albumArtwork.cache_artwork[(artist, album)]
         else:
-            discogs_url = get_artwork_location("{} {} {}".format(artist, album, 'discogs'), 'discogs.com')
+            keywords = album.split() + artist.split()
+            keywords = list(map(lower,keywords))
+            discogs_url = get_artwork_location("{} {} {}".format(artist, album, 'discogs'), 'discogs.com',keywords)
             discogs = requests.get(discogs_url).text
             thin = BeautifulSoup(discogs, 'html.parser')
             url = self.extract_artwork(thin)

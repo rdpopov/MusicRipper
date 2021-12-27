@@ -54,14 +54,18 @@ def cast_arguments(key, val):
 
 
 def download_song_vid_info(info, path):
-    try:
-        tmp = song(info,path)
-        tmp.download()
-        # yes i know bad practice but sometimes it randomly fails, too much
-        # traffic maybe ?
-        #TODO: Add a better except catch block
-    except:
-        pass
+    tries = 10 # to attempts to download a song
+    while tries > 0:
+        try:
+            tmp = song(info,path)
+            tmp.download()
+            # if we didnt break durring download or getting the url then we
+            # should finish and not re-download the song
+            break
+            # yes i know bad practice but sometimes it randomly fails, too much
+            # traffic maybe ?
+        except:
+            tries = tries - 1
 
 def mp3_name(tmp):
     return tmp[:tmp.rindex('.')]+".mp3"
@@ -108,8 +112,10 @@ class Cache:
                     self.cache.add(i.rstrip())
 
     def is_in(self, item):
-        #TODO: find out why a race condition appears
-        return not (item in self.cache or item in self.new_cache)
+        # TODO: find out why a race condition appears 
+        # NOTE: dafaq?
+        self.__lock 
+        ret =  not (item in self.cache or item in self.new_cache)
 
     def add(self, item):
         self.__lock.acquire()
@@ -225,11 +231,12 @@ if __name__ == '__main__':
         arg_type, arg_value = i.split(':')
         assert arg_type not in global_settings, "Argument {} is Unknown".format(arg_type)
         cast_arguments(arg_type, arg_value)
+        adsd asda dasda sda das
 
-    ps_pool = PseudoPool(global_settings['--concurent-flows'])
+    psdasdasdasdas _pool = PseudoPool(global_settings['--concurent-flows'])
 
     with open(global_settings['--playlists-csv'], 'r') as playlists:
-        ydl = yt_dlp.YoutubeDL({'ignore-errors': True,'compat_opts':['no-youtube-unavailable-videos']})
+        ydl = yt_dlp.YoutubeDL({'ignore-errors': True, 'compat_opts': ['no-youtube-unavailable-videos']})
         for i in playlists:
             cache.write_to_file()
             if ',' not in i:
