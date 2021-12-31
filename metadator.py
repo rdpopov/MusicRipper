@@ -24,15 +24,22 @@ def get_url(name, subs):
     return None
 
 def match_helper(url,keywords):
+    tmp_url = url.lower()
     res = 0
     for i in keywords:
-        if i in url:
+        if i in tmp_url:
             res = res + 1
     return res
 
+def gen_keywords(dct):
+    artist = dct['artist']
+    album = dct['album']
+    name = dct['name']
+    keywords = name.split() + album.split() + artist.split() + ['com/release']
+    return list(map(lambda x: x.lower(),keywords))
 
 
-def get_artwork_location(name, subs,keywords: list):
+def get_artwork_location(name, subs,keywords: list = []):
     # TODO: write a more intelligent filter
     # NOTE: make it so filter looks for keywords in the url, discogs does that.
     # so the one with the most amount of matches is the closest
@@ -43,12 +50,19 @@ def get_artwork_location(name, subs,keywords: list):
         if res.__len__() == 0:
             return None
         else:
-            lst = map(lambda x: (x,match_helper(x, keywords)),res)
-            return max(lst,lambda x: x[1])[0]
+            lst = list(map(lambda x: (x,match_helper(x, keywords)),res))
+            # for i in lst:
+            #     print(i)
+            # print(max(lst,key=lambda x: x[1]))
+            return max(lst,key=lambda x: x[1])[0]
     return None
 
 
 class Requester:
+    # TODO: this is a complete mess
+    # NOTE: have to find a place to gate better proxies or to get them from a file which is manual process.
+    # NOTE: or to write a proxy getter based on selenium
+    # NOTE: or switch the mechanism to selenium instead of beautiful soup
     def __init__(self, site, cont_tag='table', clss='table table-striped table-bordered', cols={'ip': 0, 'port': 1}):
         self._site = site
         self._cont_tag = cont_tag
@@ -56,6 +70,7 @@ class Requester:
         self._cols = cols
         self._lock = Lock()
         self._prox_list = []
+        self._no_proxy = True
         self.get_proxies()
         # if not work urllib3=1.23 ???
 
@@ -63,7 +78,6 @@ class Requester:
         if lck:
             self._lock.acquire()
 
-        
         prox_list = BeautifulSoup(requests.get(self._site).text, 'html.parser').find(self._cont_tag, {'class': self._clss})
         # print (prox_list)
         # exit(0)
@@ -92,12 +106,20 @@ class Requester:
         res = None
         while res is None:
             try:
-                prox = self.get_proxy_for_request()
-                # print(prox)
-                res = requests.get(req_to, verify=False, proxies=prox, timeout=60)
-                #print (res)
-                res = res.text
-                #print(res)
+                if self._no_proxy:
+                    prox = self.get_proxy_for_request()
+                    # print(prox)
+                    res = requests.get(req_to, verify=False,timeout=60)
+                    # print (res)
+                    res = res.text
+                    # print(res)
+                else:
+                    prox = self.get_proxy_for_request()
+                    # print(prox)
+                    res = requests.get(req_to, verify=False, proxies=prox, timeout=60)
+                    # print (res)
+                    res = res.text
+                    # print(res)
                 if 'Access Denied' in res or 'unusual activity from your IP address' in res or 'violation of your Internet usage policy' in res:
                     res = None
             except OSError:
@@ -116,7 +138,9 @@ class albumArtwork:
             os.mkdir(path)
 
     def extract_artwork(self, soupp):
-        art = soupp.find('img', {'alt': re.compile(r'album cover$')})
+        # NOTE: can be made to be better than this but since the tag has only one node don't think it's a problem
+        pic = soupp.find('picture')
+        art = list(pic.children)[0]
         if art:
             return art['src']
         return ""
@@ -124,25 +148,28 @@ class albumArtwork:
     def get_artwork(self, metadata_dict):
         artist = metadata_dict['artist']
         album = metadata_dict['album']
+        name = metadata_dict['name']
         if album is None or album == 'Unknown':
             album = metadata_dict['name']
         if (artist, album) in albumArtwork.cache_artwork:
             return albumArtwork.cache_artwork[(artist, album)]
         else:
-            keywords = album.split() + artist.split()
-            keywords = list(map(lower,keywords))
-            discogs_url = get_artwork_location("{} {} {}".format(artist, album, 'discogs'), 'discogs.com',keywords)
+            discogs_url = get_artwork_location("{} {} {}".format(artist, album, 'discogs'), 'discogs.com',gen_keywords(metadata_dict))
+            print(discogs_url)
             discogs = requests.get(discogs_url).text
             thin = BeautifulSoup(discogs, 'html.parser')
             url = self.extract_artwork(thin)
+            print("url -> ",url)
             if url:
                 img_data = requests.get(url).content
                 img_name = '{}/{} {}'.format(self.path, artist, album)
                 with open('{}/{} {}'.format(self.path, artist, album), 'wb') as handler:
                     handler.write(img_data)
+                print("here 1")
                 albumArtwork.cache_artwork[(artist, album)] = img_name
             else:
                 albumArtwork.cache_artwork[(artist, album)] = None
+                print("here 2")
             return albumArtwork.cache_artwork[(artist, album)]
 
 
@@ -153,6 +180,7 @@ class songMetadata:
         self.name = extract_name(path)
         self.url = get_url(self.name, useSite)
         self.requester = requ
+        tmp_meta_list = {'name': self.name,}
         self.discogs_url = get_artwork_location(self.name, artwork)
 
     def extract_name(self, soup):
@@ -223,17 +251,19 @@ global_artwork = albumArtwork('./tmp')
 
 if __name__ == "__main__":
     global_requester = Requester(site="https://www.sslproxies.org/")
-    # song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3",global_requester)
-    ##song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3",global_requester)
+    song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3",global_requester)
+    meta = song.fetch_metadata()
+    song.set_metadata(meta)
+    # song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3",global_requester)
     # song = songMetadata("./Music/A_Thousand_Suns/Blackout - Linkin Park.mp3",global_requester)
 
-    meta = {
-            'name': 'Like Love',
-            'album': 'Unknown',
-            'artist': 'The Amity Affliction',
-            'lyrics': 'asdf',
-            }
-    print(global_artwork.get_artwork(meta))
+    # meta = {
+    #         'name': 'Like Love',
+    #         'album': 'Unknown',
+    #         'artist': 'The Amity Affliction',
+    #         'lyrics': 'asdf',
+    #         }
+    # print(global_artwork.get_artwork(meta))
     # res = song.fetch_metadata()
     # song.set_metadata(res)
     # print(res['artist'])
