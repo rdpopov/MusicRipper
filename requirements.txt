@@ -3,3 +3,4 @@ mutagen
 googlesearch-python
 eyed3
 beautifulsoup4
+grpcio-tools

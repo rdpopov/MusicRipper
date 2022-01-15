@@ -1,3 +1,4 @@
 Music/
 .tmp
 .cache
+__pycache__
