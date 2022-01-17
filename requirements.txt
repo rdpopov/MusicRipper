@@ -4,3 +4,4 @@ googlesearch-python
 eyed3
 beautifulsoup4
 grpcio-tools
+grpc_requests

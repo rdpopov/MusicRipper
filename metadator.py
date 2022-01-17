@@ -224,6 +224,7 @@ class songMetadata:
 
     def set_metadata(self, mdata):
         sng = eyed3.load(self.path)
+        # fetch metadata from here to use
         if not sng.tag:
             sng.add_tags()
         sng.tag.artist = u"{}".format(mdata['artist'])
