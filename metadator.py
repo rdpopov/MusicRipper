@@ -8,6 +8,7 @@ import os
 import glob
 import eyed3
 import string
+import client
 
 
 def extract_name(inp):
@@ -165,18 +166,17 @@ class albumArtwork:
                 img_name = '{}/{} {}'.format(self.path, artist, album)
                 with open('{}/{} {}'.format(self.path, artist, album), 'wb') as handler:
                     handler.write(img_data)
-                print("here 1")
                 albumArtwork.cache_artwork[(artist, album)] = img_name
             else:
                 albumArtwork.cache_artwork[(artist, album)] = None
-                print("here 2")
             return albumArtwork.cache_artwork[(artist, album)]
 
 
 
 class songMetadata:
-    def __init__(self, path,requ ,useSite='azlyrics.com',artwork='discogs'):
+    def __init__(self, path,requ,cache_db_cleint=None,useSite='azlyrics.com',artwork='discogs'):
         self.path = path
+        self.client = cache_db_cleint
         self.name = extract_name(path)
         self.url = get_url(self.name, useSite)
         self.requester = requ
@@ -212,14 +212,26 @@ class songMetadata:
                 'artist': '',
                 'lyrics': '',
                 }
-        if self.url is not None:
+        done = False
+        if self.client:
+            try:
+                db_meta = self.client.QueryCachedMetadata(self.path)
+                if db_meta['']
+                meta = db_meta
+                done = True
+                if
+            except:
+                print("Couldnt query metadata")
+
+        if self.url is not None and done == False:
             text = self.requester.make_request(self.url)
-            # print(text)
             soup = BeautifulSoup(text, 'html.parser')
+            meta['fname'] = self.path
             meta['name'] = self.extract_name(soup)
             meta['album'] = self.extract_album(soup)
             meta['artist'] = self.extract_artist(soup)
             meta['lyrics'] = self.extract_lyrics(soup)
+            meta['artwork'] = global_artwork.get_artwork(mdata)
         return meta
 
     def set_metadata(self, mdata):
@@ -231,7 +243,9 @@ class songMetadata:
         sng.tag.album = u"{}".format(mdata['album'])
         sng.tag.artist = u"{}".format(mdata['artist'])
         sng.tag.lyrics.set(u"{}".format(mdata['lyrics']))
-        art = global_artwork.get_artwork(mdata)
+        # art = global_artwork.get_artwork(mdata)
+        # sng.tag.lyrics.set(u"{}".format(mdata['lyrics']))
+        art = mdata['artwork']
         print("art ",art)
         if art:
             with open(art, "rb") as cover_art:

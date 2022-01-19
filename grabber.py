@@ -231,10 +231,8 @@ if __name__ == '__main__':
         arg_type, arg_value = i.split(':')
         assert arg_type not in global_settings, "Argument {} is Unknown".format(arg_type)
         cast_arguments(arg_type, arg_value)
-        adsd asda dasda sda das
 
-    psdasdasdasdas _pool = PseudoPool(global_settings['--concurent-flows'])
-
+    ps_pool = PseudoPool(global_settings['--concurent-flows'])
     with open(global_settings['--playlists-csv'], 'r') as playlists:
         ydl = yt_dlp.YoutubeDL({'ignore-errors': True, 'compat_opts': ['no-youtube-unavailable-videos']})
         for i in playlists:
