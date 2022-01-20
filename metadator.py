@@ -1,4 +1,7 @@
 #!/usr/bin/python
+
+import sys
+sys.path.insert(0, './python-grpc/proto/')
 from googlesearch import search
 import requests
 from bs4 import BeautifulSoup
@@ -8,8 +11,10 @@ import os
 import glob
 import eyed3
 import string
-import client
+from grpc_connector import MetadataManager as MetadataManager
 
+REQUEST_TIMEOUT = 20
+DISABLE_PROXY = False
 
 def extract_name(inp):
     tmp = inp[inp.rindex('/'):]
@@ -62,7 +67,7 @@ def get_artwork_location(name, subs,keywords: list = []):
 class Requester:
     # TODO: this is a complete mess
     # NOTE: have to find a place to gate better proxies or to get them from a file which is manual process.
-    # NOTE: or to write a proxy getter based on selenium
+    # NOTE: or to write a proxy getter based on selenium -> not feasable has to work on phone as well
     # NOTE: or switch the mechanism to selenium instead of beautiful soup
     def __init__(self, site, cont_tag='table', clss='table table-striped table-bordered', cols={'ip': 0, 'port': 1}):
         self._site = site
@@ -71,9 +76,13 @@ class Requester:
         self._cols = cols
         self._lock = Lock()
         self._prox_list = []
-        self._no_proxy = True
+        self._no_proxy = DISABLE_PROXY
+        self._proxy_files = [''] # list of proxy files to pull from
         self.get_proxies()
         # if not work urllib3=1.23 ???
+    def get_proxies_from_files(self, lck=True):
+        # TODO: add proxies from a file so they can be gotten easier.
+        pass
 
     def get_proxies(self, lck=True):
         if lck:
@@ -109,18 +118,12 @@ class Requester:
             try:
                 if self._no_proxy:
                     prox = self.get_proxy_for_request()
-                    # print(prox)
-                    res = requests.get(req_to, verify=False,timeout=60)
-                    # print (res)
+                    res = requests.get(req_to, verify=False,timeout=REQUEST_TIMEOUT)
                     res = res.text
-                    # print(res)
                 else:
                     prox = self.get_proxy_for_request()
-                    # print(prox)
-                    res = requests.get(req_to, verify=False, proxies=prox, timeout=60)
-                    # print (res)
+                    res = requests.get(req_to, verify=False, proxies=prox, timeout=REQUEST_TIMEOUT)
                     res = res.text
-                    # print(res)
                 if 'Access Denied' in res or 'unusual activity from your IP address' in res or 'violation of your Internet usage policy' in res:
                     res = None
             except OSError:
@@ -193,7 +196,6 @@ class songMetadata:
 
     def extract_album(self, soup):
         alb = soup.find('div', {'class': 'songinalbum_title'})
-        print(alb)
         if alb:
             if'album' in alb.text:
                 return alb.find('b').get_text().strip('"') or ""
@@ -212,18 +214,26 @@ class songMetadata:
                 'artist': '',
                 'lyrics': '',
                 }
-        done = False
         if self.client:
-            try:
-                db_meta = self.client.QueryCachedMetadata(self.path)
-                if db_meta['']
-                meta = db_meta
-                done = True
-                if
-            except:
-                print("Couldnt query metadata")
+            db_meta = self.client.QueryCachedMetadata(self.path)
+            if db_meta['fname'] == "None" or db_meta['fname'] is None:
+                if self.url is not None:
+                    text = self.requester.make_request(self.url)
+                    soup = BeautifulSoup(text, 'html.parser')
+                    db_meta['fname'] = self.path
+                    db_meta['name'] = self.extract_name(soup)
+                    db_meta['album'] = self.extract_album(soup)
+                    db_meta['artist'] = self.extract_artist(soup)
+                    db_meta['lyrics'] = self.extract_lyrics(soup)
+                    db_meta['artwork'] = global_artwork.get_artwork(db_meta)
+                    self.client.SongAddIfNotExist(db_meta)
+                    print(db_meta)
+                    return db_meta
+            else:
+                print(db_meta)
+                return db_meta
 
-        if self.url is not None and done == False:
+        if self.url is not None:
             text = self.requester.make_request(self.url)
             soup = BeautifulSoup(text, 'html.parser')
             meta['fname'] = self.path
@@ -231,7 +241,7 @@ class songMetadata:
             meta['album'] = self.extract_album(soup)
             meta['artist'] = self.extract_artist(soup)
             meta['lyrics'] = self.extract_lyrics(soup)
-            meta['artwork'] = global_artwork.get_artwork(mdata)
+            meta['artwork'] = global_artwork.get_artwork(meta)
         return meta
 
     def set_metadata(self, mdata):
@@ -239,14 +249,11 @@ class songMetadata:
         # fetch metadata from here to use
         if not sng.tag:
             sng.add_tags()
-        sng.tag.artist = u"{}".format(mdata['artist'])
+        sng.tag.title = u"{}".format(mdata['name'])
         sng.tag.album = u"{}".format(mdata['album'])
         sng.tag.artist = u"{}".format(mdata['artist'])
         sng.tag.lyrics.set(u"{}".format(mdata['lyrics']))
-        # art = global_artwork.get_artwork(mdata)
-        # sng.tag.lyrics.set(u"{}".format(mdata['lyrics']))
         art = mdata['artwork']
-        print("art ",art)
         if art:
             with open(art, "rb") as cover_art:
                 sng.tag.images.set(3, cover_art.read(), "image/jpeg")
@@ -266,7 +273,10 @@ global_artwork = albumArtwork('./tmp')
 
 if __name__ == "__main__":
     global_requester = Requester(site="https://www.sslproxies.org/")
-    song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3",global_requester)
+    global_client = MetadataManager()
+    # song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3",global_requester,cache_db_cleint=global_client)
+    song = songMetadata("./Music/A_Thousand_Suns/Blackout - Linkin Park.mp3",global_requester, cache_db_cleint=global_client)
+    # song = songMetadata("./Music/Like_Love/The Amity Affliction 'Like Love' Official Music Video.mp3",global_requester,cache_db_cleint=global_client)
     meta = song.fetch_metadata()
     song.set_metadata(meta)
     # song = songMetadata("./Music/Let_the_ocean_take_me/The Amity Affliction - Death's Hand.mp3",global_requester)

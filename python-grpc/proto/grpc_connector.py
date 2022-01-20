@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 
 from grpc_requests import StubClient
-from helloworld_pb2 import DESCRIPTOR
+# import "./python-grpc/proto/helloworld_pb2.py"
+from helloworld_pb2 import *
 
 
 
@@ -18,17 +19,17 @@ class MetadataManager():
     def QueryCachedMetadata(self,song_name:str) -> dict: 
         req = {"song_name": song_name}
         res = self.__service.QueryMeta(req)
-        print(res)
+        # print(res)
         return res
 
     def UpdateMeta(self,song_meta : dict) -> bool:
         res = self.__service.UpdateMeta(song_meta)
-        print(res)
+        # print(res)
         return bool(int(res['result']))
 
     def AddMeta(self,song_meta : dict) -> bool:
         res = self.__service.AddMeta(song_meta)
-        print(res)
+        # print(res)
         return bool(int(res['result']))
 
 
@@ -37,19 +38,17 @@ class MetadataManager():
     def SongAddIfNotExist(self,song_meta:dict) -> bool:
         res = self.QueryCachedMetadata(song_meta['fname'])
         if res['fname'] == "None":
-            print('added meta')
+            # print('added meta')
             res = self.AddMeta(song_meta)
-        return bool(int(res['result']))
+                
 
     def UpdateMetaOrAdd(self,song_meta:dict) -> bool:
         res = self.QueryCachedMetadata(song_meta['fname'])
         if res['fname'] == "None":
-            print('added meta')
-            res = self.AddMeta(song_meta)
+            # print('added meta')
+            self.AddMeta(song_meta)
         else:
-            res = self.UpdateMeta(song_meta)
-        print(res)
-        return bool(int(res['result']))
+            self.UpdateMeta(song_meta)
 
 if __name__ == "__main__":
     t = MetadataManager()
