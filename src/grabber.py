@@ -9,6 +9,7 @@ from threading import Thread as Thread
 from threading import Lock as Lock
 import metadator
 import eyeD3
+# TODO: adapt code to curent structure and paths
 
 global_artwork = metadator.albumArtwork('./tmp')
 
@@ -242,6 +243,9 @@ if __name__ == '__main__':
             name, link = i.split(',')
             with ydl:
                 try:
+                    # TODO: maybe implemnt a pseudo pool to do so, based on mutexes not semaphores
+                    # TODO: rewrite this with the async primitives not threads
+                    # NOTE: are the asnc primitives available under termux
                     result = ydl.extract_info(link, download=False)
                     if 'entries' in result:
                         video = result['entries']
