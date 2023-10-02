@@ -2,10 +2,13 @@ class MetadataFacade:
     def __init__(self):
         self.connection = None # open db connection
 
+    def isInDb(self, song_fname:str) -> dict | None :
+        if self.connection is not None:
+        return None
+
     def isInDb(self, ytId:str) -> dict | None :
-        # query db for the song id
-        # TODO: implement
-        self.connection = None
+        if self.connection is not None:
+        return None
 
     def putInDb(self, song:dict):
         # query db for the song id

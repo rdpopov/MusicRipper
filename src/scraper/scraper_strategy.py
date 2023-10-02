@@ -1,8 +1,18 @@
+class ProxyAdressDbSchema:
+    proxy_addr_table = """ CREATE TABLE IF NOT EXISTS ip (
+            ip_addr text PRIMARY KEY,
+            useful integer
+            );"""
 
-class ScraperStrategy:
+class ScraperStrategyInt:
     def __init__(self,dbConnect):
-        self.dbConnect = dbConnect
-        # TODO: implement
+        conn = sqlite3.connect(ProxyAdressDbSchema.proxy_addr_table)
+        if conn is not None:
+            conn.execute(ProxyAdressDbSchema.proxy_addr_table)
+        else:
+            print("Error! cannot create the database connection.")
+        self.connection = conn
+
     def get(self,filename:str) -> dict:
         # TODO: implement
         return {}
@@ -10,7 +20,7 @@ class ScraperStrategy:
         # TODO: implement
         pass
 
-class GeniusLyricsScraper(ScraperStrategy):
+class GeniusLyricsScraper(ScraperStrategyInt):
     def get(self,filename:str) -> dict:
         # TODO: implement
         return {}
@@ -18,7 +28,7 @@ class GeniusLyricsScraper(ScraperStrategy):
         # TODO: implement
         pass
 
-class AzlDiscogsScraper(ScraperStrategy):
+class AzlDiscogsScraper(ScraperStrategyInt):
     def get(self,filename:str) -> dict:
         # TODO: implement
         return {}
